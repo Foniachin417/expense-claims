@@ -276,12 +276,8 @@
         </select>
       </div>
       <div class="form-group">
-        <label>Last Serviced Date</label>
-        <input type="date" id="m-last-serviced">
-      </div>
-      <div class="form-group">
-        <label>Next Service Date *</label>
-        <input type="date" id="m-next-service">
+        <label>📅 Appointment Date</label>
+        <input type="date" id="m-appt-date">
       </div>
       <div class="form-group">
         <label>Cost (SGD)</label>
@@ -359,12 +355,6 @@
           <option>Foods</option>
           <option>Toilet</option>
           <option>Appliances</option>
-          <option>Meals &amp; Entertainment</option>
-          <option>Transport</option>
-          <option>Accommodation</option>
-          <option>Office Supplies</option>
-          <option>Client Gifts</option>
-          <option>Training &amp; Development</option>
           <option>Other</option>
         </select>
         <input type="text" id="filter-search" placeholder="Search…" oninput="renderClaimsTable()" style="width:130px">
@@ -396,12 +386,6 @@
             <option>Foods</option>
             <option>Toilet</option>
             <option>Appliances</option>
-            <option>Meals &amp; Entertainment</option>
-            <option>Transport</option>
-            <option>Accommodation</option>
-            <option>Office Supplies</option>
-            <option>Client Gifts</option>
-            <option>Training &amp; Development</option>
             <option>Other</option>
           </select>
         </div>
@@ -486,8 +470,7 @@
         <thead><tr>
           <th>Item</th>
           <th>Location</th>
-          <th>Last Serviced</th>
-          <th>Next Service</th>
+          <th>Appointment Date</th>
           <th>Cost</th>
           <th>Status</th>
           <th>Notes</th>
@@ -498,6 +481,7 @@
     </div>
   </div>
 </div>
+
 
 <!-- ===== SETTINGS ===== -->
 <div id="settings" class="page">
@@ -559,8 +543,8 @@ const SUPABASE_KEY = 'sb_publishable_J2HxzHa2r-2WRfAUDvFFsg_vpBNJAMl';
 const { createClient } = window.supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const CATEGORIES = ['Kitchen','Foods','Toilet','Appliances','Meals & Entertainment','Transport','Accommodation','Office Supplies','Client Gifts','Training & Development','Other'];
-const CAT_COLORS  = ['#4f46e5','#7c3aed','#2563eb','#0891b2','#059669','#d97706','#dc2626','#ea580c','#9333ea','#0d9488','#64748b'];
+const CATEGORIES = ['Kitchen','Foods','Toilet','Appliances','Other'];
+const CAT_COLORS  = ['#4f46e5','#7c3aed','#2563eb','#0891b2','#64748b'];
 
 let currentUser = null;
 let claims      = [];
@@ -1028,8 +1012,7 @@ function renderMaintTable(){
     <tr>
       <td><strong>${m.item_name}</strong></td>
       <td>${m.location||'—'}</td>
-      <td>${fmtDate(m.last_serviced)}</td>
-      <td>${fmtDate(m.next_service)}</td>
+      <td>${m.appt_date?`<strong style="color:#4f46e5">${fmtDate(m.appt_date)}</strong>`:'—'}</td>
       <td>${m.cost?fmt(m.cost):'—'}</td>
       <td><span class="badge ${m.status}">${m.status.charAt(0).toUpperCase()+m.status.slice(1)}</span></td>
       <td style="font-size:12px;color:#888;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.notes||''}</td>
@@ -1038,7 +1021,7 @@ function renderMaintTable(){
         <button class="btn-delete" onclick="deleteMaintItem(${m.id})" title="Delete">🗑</button>
       </td>
     </tr>`).join('')
-    :'<tr><td colspan="8" class="empty-state">No maintenance items yet — click + Add Item</td></tr>';
+    :'<tr><td colspan="7" class="empty-state">No maintenance items yet — click + Add Item</td></tr>';
 }
 
 // ---- Calendar ----
@@ -1063,7 +1046,7 @@ function renderCalendar(){
   for (let d=1;d<=daysInMonth;d++){
     const dateStr=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday=today.getFullYear()===calYear&&today.getMonth()===calMonth&&today.getDate()===d;
-    const dayItems=maintItems.filter(m=>m.next_service===dateStr);
+    const dayItems=maintItems.filter(m=>m.appt_date===dateStr);
     const events=dayItems.map(m=>`<div class="cal-event ${m.status}" title="${m.item_name}">${m.item_name}</div>`).join('');
     cells+=`<div class="cal-cell${isToday?' today':''}"><div class="cal-date">${d}</div>${events}</div>`;
   }
@@ -1090,14 +1073,13 @@ function openMaintModal(id){
       document.getElementById('m-name').value=item.item_name||'';
       document.getElementById('m-location').value=item.location||'';
       document.getElementById('m-status').value=item.status||'upcoming';
-      document.getElementById('m-last-serviced').value=item.last_serviced||'';
-      document.getElementById('m-next-service').value=item.next_service||'';
+      document.getElementById('m-appt-date').value=item.appt_date||'';
       document.getElementById('m-cost').value=item.cost||'';
       document.getElementById('m-notes').value=item.notes||'';
     }
   } else {
     document.getElementById('maint-modal-title').textContent='🔧 Add Maintenance Item';
-    ['m-name','m-last-serviced','m-next-service','m-cost','m-notes'].forEach(id=>document.getElementById(id).value='');
+    ['m-name','m-appt-date','m-cost','m-notes'].forEach(id=>document.getElementById(id).value='');
     document.getElementById('m-location').value='';
     document.getElementById('m-status').value='upcoming';
   }
@@ -1109,15 +1091,12 @@ function closeMaintModal(){ document.getElementById('maint-modal').classList.rem
 async function saveMaintItem(){
   const name=document.getElementById('m-name').value.trim();
   if (!name){showToast('Item name is required','#dc2626');return;}
-  const nextService=document.getElementById('m-next-service').value;
-  if (!nextService){showToast('Next service date is required','#dc2626');return;}
   const editId=document.getElementById('m-edit-id').value;
   const payload={
     item_name:name,
     location:document.getElementById('m-location').value||null,
     status:document.getElementById('m-status').value,
-    last_serviced:document.getElementById('m-last-serviced').value||null,
-    next_service:nextService,
+    appt_date:document.getElementById('m-appt-date').value||null,
     cost:parseFloat(document.getElementById('m-cost').value)||0,
     notes:document.getElementById('m-notes').value.trim()||null,
   };
@@ -1169,4 +1148,3 @@ if (SUPABASE_URL==='YOUR_SUPABASE_URL'){
 </script>
 </body>
 </html>
-
