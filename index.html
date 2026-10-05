@@ -222,25 +222,7 @@
     </div>
     <div class="pin-err" id="ml-err" style="margin-top:10px"></div>
     <div class="pin-actions" style="margin-top:14px">
-      <button class="btn-save" style="width:100%" onclick="modalLogin()">Sign In</button>
-    </div>
-  </div>
-</div>
-
-<!-- First-time setup modal -->
-<div class="pin-modal-bg" id="setup-modal">
-  <div class="pin-modal" style="width:420px;text-align:left">
-    <h3>🔐 First-Time Setup</h3>
-    <p style="margin-bottom:16px">Create the approver account.</p>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <input type="text" id="setup-name" placeholder="Your name" style="width:100%;font-size:14px">
-      <input type="email" id="setup-email" placeholder="Approver email" style="width:100%;font-size:14px">
-      <input type="password" id="setup-pw1" placeholder="Password" style="width:100%;font-size:14px">
-      <input type="password" id="setup-pw2" placeholder="Confirm password" style="width:100%;font-size:14px">
-    </div>
-    <div class="pin-err" id="setup-err" style="margin-top:10px"></div>
-    <div class="pin-actions" style="margin-top:14px">
-      <button class="btn-save" style="width:100%" onclick="setupApprover()">Create Approver Account</button>
+      <button class="btn-save" style="width:100%" id="ml-btn" onclick="modalLogin()">Sign In</button>
     </div>
   </div>
 </div>
@@ -491,21 +473,21 @@
       <div class="form-grid" style="margin-top:16px">
         <div class="form-group full"><label>Name</label><input type="text" id="nu-name" placeholder="Full name"></div>
         <div class="form-group full"><label>Email</label><input type="email" id="nu-email" placeholder="email@example.com"></div>
-        <div class="form-group"><label>Password</label><input type="password" id="nu-pw" placeholder="Password"></div>
-        <div class="form-group"><label>Role</label>
+        <div class="form-group full"><label>Role</label>
           <select id="nu-role">
             <option value="submitter">Submitter (submit only)</option>
             <option value="approver">Approver (approve/reject)</option>
           </select>
         </div>
       </div>
-      <button class="submit-btn" style="margin-top:16px" onclick="addUser()">Add User</button>
+      <p style="font-size:12px;color:#666;margin-top:12px;line-height:1.5">After adding, also create their login in Supabase: <strong>Authentication → Users → Add user</strong> (same email). Only people listed here AND in Supabase can sign in.</p>
+      <button class="submit-btn" style="margin-top:12px" onclick="addUser()">Add User</button>
     </div>
     <div class="form-card" style="max-width:none">
       <h2>🔑 Change My Password</h2>
       <div class="form-grid" style="margin-top:16px">
         <div class="form-group full"><label>Current Password</label><input type="password" id="chg-old" placeholder="Current password"></div>
-        <div class="form-group"><label>New Password</label><input type="password" id="chg-new1" placeholder="New password"></div>
+        <div class="form-group"><label>New Password</label><input type="password" id="chg-new1" placeholder="New password (min 8)"></div>
         <div class="form-group"><label>Confirm</label><input type="password" id="chg-new2" placeholder="Confirm new password"></div>
       </div>
       <button class="submit-btn" style="margin-top:16px" onclick="changePassword()">Update Password</button>
@@ -561,7 +543,6 @@ let calMonth = new Date().getMonth(); // 0-indexed
 function fmt(n) { return 'S$' + parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
 function fmtDate(d) { if (!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-SG',{day:'2-digit',month:'short',year:'numeric'}); }
 function fmtMonth(m) { const [y,mo]=m.split('-'); return new Date(y,mo-1).toLocaleDateString('en-SG',{month:'long',year:'numeric'}); }
-function hashStr(s) { let h=0; for(let i=0;i<s.length;i++){h=Math.imul(31,h)+s.charCodeAt(i)|0;} return 'h'+Math.abs(h).toString(36); }
 function showToast(msg, color) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.style.background = color||'#16a34a';
@@ -569,7 +550,7 @@ function showToast(msg, color) {
 }
 function mapClaim(row) { return {...row, desc: row.description}; }
 
-// ---- Load all data ----
+// ---- Load all data (only after sign-in) ----
 async function loadAll() {
   const [claimsRes, usersRes, settingsRes, maintRes] = await Promise.all([
     db.from('claims').select('*').order('date',{ascending:false}),
@@ -585,14 +566,20 @@ async function loadAll() {
   budget     = br ? parseFloat(br.value) : 0;
   const tr   = s.find(x=>x.key==='topups');
   topups     = tr ? tr.value : [];
-  document.getElementById('loading-overlay').style.display = 'none';
-  initAuth(); initBudgetInput();
+  initBudgetInput();
+  renderDashboard(); renderClaimsTable(); renderMaintPage();
+}
+
+function clearData() {
+  claims=[]; users=[]; budget=0; topups=[]; maintItems=[];
   renderDashboard(); renderClaimsTable(); renderMaintPage();
 }
 
 // ---- Realtime ----
+let liveChannel = null;
 function subscribeRealtime() {
-  db.channel('all-changes')
+  if (liveChannel) return;
+  liveChannel = db.channel('all-changes')
     .on('postgres_changes',{event:'*',schema:'public',table:'claims'}, async ()=>{
       const {data}=await db.from('claims').select('*').order('date',{ascending:false});
       claims=(data||[]).map(mapClaim); renderDashboard(); renderClaimsTable(); showToast('🔄 Claims updated');
@@ -615,36 +602,48 @@ function subscribeRealtime() {
     .subscribe();
 }
 
-// ---- Auth ----
-function initAuth() {
-  if (users.length===0) { document.getElementById('setup-modal').classList.add('open'); }
-  else { document.getElementById('login-modal').classList.add('open'); }
+// ---- Auth (Supabase Auth) ----
+// Passwords are handled by Supabase. app_users only stores name + role.
+async function startApp() {
+  const { data: { session } } = await db.auth.getSession();
+  document.getElementById('loading-overlay').style.display='none';
+  if (session) {
+    const ok = await enterApp(session.user.email);
+    if (ok) return;
+  }
+  document.getElementById('login-modal').classList.add('open');
 }
-async function setupApprover() {
-  const name=document.getElementById('setup-name').value.trim();
-  const email=document.getElementById('setup-email').value.trim().toLowerCase();
-  const pw1=document.getElementById('setup-pw1').value;
-  const pw2=document.getElementById('setup-pw2').value;
-  const err=document.getElementById('setup-err');
-  if (!name){err.textContent='Name is required';return;}
-  if (!email.includes('@')){err.textContent='Enter a valid email';return;}
-  if (!pw1){err.textContent='Password cannot be empty';return;}
-  if (pw1!==pw2){err.textContent='Passwords do not match';return;}
-  const {error}=await db.from('app_users').insert({name,email,role:'approver',pw_hash:hashStr(pw1)});
-  if (error){err.textContent='Setup failed: '+error.message;return;}
-  document.getElementById('setup-modal').classList.remove('open');
-  const {data}=await db.from('app_users').select('*');
-  users=data||[]; loginAs(users.find(u=>u.email===email));
-  showToast('✅ Account created! Welcome, '+name);
+
+async function enterApp(email) {
+  await loadAll();
+  const me = users.find(u=>(u.email||'').toLowerCase()===(email||'').toLowerCase());
+  if (!me) {
+    await db.auth.signOut();
+    clearData();
+    document.getElementById('ml-err').textContent='This account is not authorised to use the app.';
+    return false;
+  }
+  loginAs(me);
+  subscribeRealtime();
+  return true;
 }
-function modalLogin() {
+
+async function modalLogin() {
   const email=document.getElementById('ml-email').value.trim().toLowerCase();
   const pw=document.getElementById('ml-pw').value;
   const err=document.getElementById('ml-err');
-  const user=users.find(u=>u.email===email&&u.pw_hash===hashStr(pw));
-  if (user){document.getElementById('login-modal').classList.remove('open');loginAs(user);}
-  else{err.textContent='Incorrect email or password';document.getElementById('ml-pw').value='';}
+  const btn=document.getElementById('ml-btn');
+  err.textContent='';
+  if (!email||!pw){err.textContent='Enter your email and password';return;}
+  btn.disabled=true; btn.textContent='Signing in…';
+  const {error}=await db.auth.signInWithPassword({email,password:pw});
+  document.getElementById('ml-pw').value='';
+  if (error){btn.disabled=false;btn.textContent='Sign In';err.textContent='Incorrect email or password';return;}
+  const ok=await enterApp(email);
+  btn.disabled=false; btn.textContent='Sign In';
+  if (ok) document.getElementById('login-modal').classList.remove('open');
 }
+
 function loginAs(user) {
   currentUser=user;
   const isApprover=user.role==='approver';
@@ -661,31 +660,33 @@ function loginAs(user) {
   renderClaimsTable(); renderDashboard(); renderMaintPage();
   if (isApprover) renderUsersTable();
 }
-function doLogout() {
+
+async function doLogout() {
+  await db.auth.signOut();
+  if (liveChannel){ db.removeChannel(liveChannel); liveChannel=null; }
   currentUser=null;
+  clearData();
   document.getElementById('approver-bar').style.display='none';
   document.getElementById('header-role').textContent='';
   document.getElementById('settings-nav').style.display='none';
   document.getElementById('budget-edit-bar').style.display='none';
-  showPage('dashboard'); renderClaimsTable();
+  showPage('dashboard');
   document.getElementById('login-modal').classList.add('open');
   document.getElementById('ml-err').textContent='';
 }
+
 async function addUser() {
   const name=document.getElementById('nu-name').value.trim();
   const email=document.getElementById('nu-email').value.trim().toLowerCase();
-  const pw=document.getElementById('nu-pw').value;
   const role=document.getElementById('nu-role').value;
   if (!name){showToast('Name is required','#dc2626');return;}
   if (!email.includes('@')){showToast('Enter a valid email','#dc2626');return;}
-  if (!pw){showToast('Password cannot be empty','#dc2626');return;}
-  if (users.find(u=>u.email===email)){showToast('Email already registered','#dc2626');return;}
-  const {error}=await db.from('app_users').insert({name,email,role,pw_hash:hashStr(pw)});
+  if (users.find(u=>(u.email||'').toLowerCase()===email)){showToast('Email already registered','#dc2626');return;}
+  const {error}=await db.from('app_users').insert({name,email,role});
   if (error){showToast('Failed: '+error.message,'#dc2626');return;}
   document.getElementById('nu-name').value='';
   document.getElementById('nu-email').value='';
-  document.getElementById('nu-pw').value='';
-  showToast(`✅ ${name} added as ${role}`);
+  showToast(`✅ ${name} added. Now create their login in Supabase → Authentication → Users.`);
 }
 async function deleteUser(email) {
   if (email===currentUser?.email){showToast('Cannot delete your own account','#dc2626');return;}
@@ -708,11 +709,12 @@ async function changePassword() {
   const old=document.getElementById('chg-old').value;
   const n1=document.getElementById('chg-new1').value;
   const n2=document.getElementById('chg-new2').value;
-  const me=users.find(u=>u.email===currentUser?.email);
-  if (!me||me.pw_hash!==hashStr(old)){showToast('Current password is incorrect','#dc2626');return;}
-  if (!n1){showToast('New password cannot be empty','#dc2626');return;}
+  if (!currentUser) return;
+  if (!n1||n1.length<8){showToast('New password must be at least 8 characters','#dc2626');return;}
   if (n1!==n2){showToast('Passwords do not match','#dc2626');return;}
-  const {error}=await db.from('app_users').update({pw_hash:hashStr(n1)}).eq('email',currentUser.email);
+  const check=await db.auth.signInWithPassword({email:currentUser.email,password:old});
+  if (check.error){showToast('Current password is incorrect','#dc2626');return;}
+  const {error}=await db.auth.updateUser({password:n1});
   if (error){showToast('Failed: '+error.message,'#dc2626');return;}
   ['chg-old','chg-new1','chg-new2'].forEach(id=>document.getElementById(id).value='');
   showToast('✅ Password updated');
@@ -1134,17 +1136,7 @@ function showPage(id){
 
 // ---- Init ----
 document.getElementById('f-date').value=new Date().toISOString().split('T')[0];
-
-if (SUPABASE_URL==='YOUR_SUPABASE_URL'){
-  document.getElementById('loading-overlay').innerHTML=`
-    <div style="text-align:center;max-width:420px;padding:32px">
-      <div style="font-size:48px;margin-bottom:16px">⚙️</div>
-      <h2 style="font-size:20px;margin-bottom:10px">Add your Supabase credentials</h2>
-      <p style="color:#666;font-size:14px;line-height:1.6">Open this HTML file and replace <code style="background:#f0f0f0;padding:2px 6px;border-radius:4px">YOUR_SUPABASE_URL</code> and <code style="background:#f0f0f0;padding:2px 6px;border-radius:4px">YOUR_SUPABASE_ANON_KEY</code> with your project values from <strong>supabase.com → Settings → API</strong>.</p>
-    </div>`;
-} else {
-  loadAll(); subscribeRealtime();
-}
+startApp();
 </script>
 </body>
 </html>
