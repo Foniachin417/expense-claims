@@ -3,7 +3,11 @@
 <head>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a1a2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="House Expenses">
 <title>Expense &amp; Maintenance</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -124,7 +128,7 @@
   /* Modals */
   .pin-modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 300; align-items: center; justify-content: center; }
   .pin-modal-bg.open { display: flex; }
-  .pin-modal { background: white; border-radius: 14px; padding: 28px; width: 320px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); text-align: center; }
+  .pin-modal { background: white; border-radius: 14px; padding: 28px; width: 320px; max-width: calc(100vw - 32px); box-shadow: 0 8px 32px rgba(0,0,0,0.2); text-align: center; }
   .pin-modal h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
   .pin-modal p { font-size: 13px; color: #888; margin-bottom: 18px; }
   .pin-modal input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; text-align: left; margin-bottom: 10px; }
@@ -179,13 +183,85 @@
   .maint-modal { background: white; border-radius: 14px; padding: 28px; width: 500px; max-width: 95vw; box-shadow: 0 8px 32px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto; }
   .maint-modal h3 { font-size: 17px; font-weight: 700; margin-bottom: 20px; }
 
+  .nav-ic { margin-right: 6px; }
+
+  /* ================= PHONE LAYOUT ================= */
   @media (max-width: 640px) {
-    .charts { grid-template-columns: 1fr; }
+    body { padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
+
+    /* Header + user bar */
+    header { padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top)); }
+    header h1 { font-size: 17px; }
+    .live-label { display: none; }
+    .approver-bar { padding: 8px 16px; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; }
+
+    /* Bottom tab bar, like a phone app */
+    nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 200; padding: 0 0 env(safe-area-inset-bottom);
+          border-top: 1px solid #e0e0e0; border-bottom: none; box-shadow: 0 -2px 10px rgba(0,0,0,0.06); overflow: visible; }
+    nav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+                 padding: 8px 2px 9px; font-size: 11px; border-bottom: none; border-top: 3px solid transparent; min-width: 0; }
+    nav button.active { border-top-color: #4f46e5; }
+    .nav-ic { margin-right: 0; font-size: 20px; line-height: 1; }
+    .nav-tx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+    /* Pages + cards */
+    .page { padding: 14px 12px 20px; }
+    .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+    .card { padding: 14px; }
+    .card .value { font-size: 20px; word-break: break-word; }
+    .charts { grid-template-columns: 1fr; gap: 14px; }
+    .chart-box { padding: 16px; }
+    .bar-row .cat-label { width: 80px; }
+    .form-card { padding: 18px; }
     .form-grid { grid-template-columns: 1fr; }
-    .page { padding: 16px; }
-    nav { padding: 0 8px; }
-    .cal-cell { min-height: 50px; }
-    .cal-event { display: none; }
+    .settings-grid { grid-template-columns: 1fr !important; }
+
+    /* Bigger, zoom-free inputs (iOS zooms if font < 16px) */
+    input, select, textarea { font-size: 16px !important; }
+    .budget-edit { padding: 14px; gap: 8px; }
+    .budget-edit label { width: 100%; }
+    .budget-edit input { flex: 1 1 140px; width: auto; }
+    .budget-edit button { flex: 1 1 100%; padding: 10px; }
+    .budget-edit .divider { display: none; }
+
+    /* Table headers + filters */
+    .table-header { padding: 12px 14px; }
+    .filter-row, .hdr-tools { width: 100%; flex-wrap: wrap; }
+    .filter-row select, .filter-row input, .hdr-tools select { flex: 1 1 45%; min-width: 0; width: auto !important; }
+    .hdr-tools button { flex: 1 1 100%; padding: 10px !important; }
+
+    /* Tables become cards */
+    table.stack thead { display: none; }
+    table.stack, table.stack tbody, table.stack tr { display: block; width: 100%; }
+    table.stack tr { border-top: 1px solid #f0f0f0; padding: 8px 0; }
+    table.stack td { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+                     padding: 5px 14px !important; border: none !important; text-align: right; font-size: 14px; }
+    table.stack td[data-label]::before { content: attr(data-label); color: #888; font-size: 12px; font-weight: 500;
+                     text-align: left; flex-shrink: 0; }
+    table.stack td:not([data-label]):not(.td-actions) { display: block; text-align: center; }
+    table.stack td.td-actions { justify-content: flex-end; }
+    table.stack td.td-actions:empty { display: none; }
+    table.stack td.td-notes { max-width: none !important; white-space: normal !important; }
+    table.stack td.td-notes:empty, .hide-mobile { display: none !important; }
+    table.stack tr:hover td { background: transparent; }
+
+    /* Claims month headings */
+    .month-heading { flex-wrap: wrap; gap: 6px; padding: 10px 14px; }
+    .month-heading > div:last-child { gap: 8px !important; flex-wrap: wrap; }
+
+    /* Calendar: coloured dots instead of text */
+    .cal-grid { gap: 2px; }
+    .cal-cell { min-height: 46px; padding: 3px; }
+    .cal-event { display: inline-block; width: 7px; height: 7px; padding: 0; margin: 0 1px; border-radius: 50%;
+                 font-size: 0; vertical-align: middle; }
+    .cal-event.overdue { background: #dc2626; }
+    .cal-event.upcoming { background: #2563eb; }
+    .cal-event.done { background: #16a34a; }
+    .cal-nav span { min-width: 110px; font-size: 13px; }
+
+    /* Modals + toast */
+    .pin-modal, .maint-modal { padding: 20px; }
+    .toast { left: 16px; right: 16px; bottom: calc(80px + env(safe-area-inset-bottom)); text-align: center; }
   }
 </style>
 </head>
@@ -200,7 +276,7 @@
   <span>💼</span>
   <h1>Expense &amp; Maintenance</h1>
   <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
-    <span style="font-size:12px;opacity:.6"><span class="live-dot"></span>Live</span>
+    <span class="live-label" style="font-size:12px;opacity:.6"><span class="live-dot"></span>Live</span>
     <div style="font-size:13px;opacity:.7" id="header-role"></div>
   </div>
 </header>
@@ -208,11 +284,11 @@
 <div class="approver-bar" id="approver-bar" style="display:none"></div>
 
 <nav>
-  <button class="active" onclick="showPage('dashboard')">📊 Dashboard</button>
-  <button onclick="showPage('claims')">📋 All Claims</button>
-  <button onclick="showPage('submit')">➕ Submit Claim</button>
-  <button onclick="showPage('maintenance')">🔧 Maintenance</button>
-  <button onclick="showPage('settings')" id="settings-nav" style="display:none">⚙️ Settings</button>
+  <button class="active" onclick="showPage('dashboard')"><span class="nav-ic">📊</span><span class="nav-tx">Dashboard</span></button>
+  <button onclick="showPage('claims')"><span class="nav-ic">📋</span><span class="nav-tx">Claims</span></button>
+  <button onclick="showPage('submit')"><span class="nav-ic">➕</span><span class="nav-tx">Submit</span></button>
+  <button onclick="showPage('maintenance')"><span class="nav-ic">🔧</span><span class="nav-tx">Maintenance</span></button>
+  <button onclick="showPage('settings')" id="settings-nav" style="display:none"><span class="nav-ic">⚙️</span><span class="nav-tx">Settings</span></button>
 </nav>
 
 <!-- Login modal -->
@@ -315,13 +391,13 @@
       <h3>🔧 Upcoming Maintenance</h3>
       <button onclick="showPage('maintenance')" style="padding:6px 14px;background:#eef2ff;color:#4f46e5;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600">View all →</button>
     </div>
-    <table><thead><tr><th>Date</th><th>Item</th><th>Location</th><th>Cost</th><th>Status</th></tr></thead>
+    <table class="stack"><thead><tr><th>Date</th><th>Item</th><th>Location</th><th>Cost</th><th>Status</th></tr></thead>
     <tbody id="upcoming-maint-tbody"></tbody></table>
   </div>
 
   <div class="topup-section" id="topup-section" style="display:none">
     <div class="ts-header"><h3>📅 Top-up History</h3></div>
-    <table class="topup-table" style="width:100%;border-collapse:collapse">
+    <table class="topup-table stack" style="width:100%;border-collapse:collapse">
       <thead><tr>
         <th style="background:#fafafa;text-align:left;text-transform:uppercase;letter-spacing:.5px;color:#888;font-weight:600">Month</th>
         <th style="background:#fafafa;text-align:left;text-transform:uppercase;letter-spacing:.5px;color:#888;font-weight:600">Amount</th>
@@ -450,7 +526,7 @@
   <div class="table-wrap">
     <div class="table-header">
       <h3>🔧 Maintenance Items</h3>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div class="hdr-tools" style="display:flex;gap:8px;align-items:center">
         <select id="maint-filter-status" onchange="renderMaintTable()" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">
           <option value="">All Statuses</option>
           <option value="upcoming">Upcoming</option>
@@ -471,7 +547,7 @@
       </div>
     </div>
     <div id="maint-table-body">
-      <table style="width:100%;border-collapse:collapse">
+      <table class="stack" style="width:100%;border-collapse:collapse">
         <thead><tr>
           <th>Item</th>
           <th>Location</th>
@@ -490,7 +566,7 @@
 
 <!-- ===== SETTINGS ===== -->
 <div id="settings" class="page">
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:900px">
+  <div class="settings-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:900px">
     <div class="form-card" style="max-width:none">
       <h2>➕ Add User</h2>
       <div class="form-grid" style="margin-top:16px">
@@ -518,7 +594,7 @@
   </div>
   <div class="table-wrap" style="margin-top:20px;max-width:900px">
     <div class="table-header"><h3>👥 All Users</h3></div>
-    <table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
+    <table class="stack"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
     <tbody id="users-tbody"></tbody></table>
   </div>
 </div>
@@ -791,9 +867,9 @@ function renderUsersTable() {
   if (!tbody) return;
   tbody.innerHTML=users.map(u=>`
     <tr>
-      <td>${esc(u.name)}</td><td>${esc(u.email)}</td>
-      <td><span style="background:${u.role==='approver'?'#d1fae5':'#e0e7ff'};color:${u.role==='approver'?'#065f46':'#3730a3'};padding:2px 8px;border-radius:8px;font-size:12px;font-weight:600">${u.role==='approver'?'Approver':'Submitter'}</span></td>
-      <td>${u.email!==currentUser?.email?`<button class="btn-delete" onclick="deleteUser(${jsArg(u.email)})" title="Remove">🗑</button>`:'<span style="font-size:12px;color:#aaa">You</span>'}</td>
+      <td data-label="Name">${esc(u.name)}</td><td data-label="Email">${esc(u.email)}</td>
+      <td data-label="Role"><span style="background:${u.role==='approver'?'#d1fae5':'#e0e7ff'};color:${u.role==='approver'?'#065f46':'#3730a3'};padding:2px 8px;border-radius:8px;font-size:12px;font-weight:600">${u.role==='approver'?'Approver':'Submitter'}</span></td>
+      <td class="td-actions">${u.email!==currentUser?.email?`<button class="btn-delete" onclick="deleteUser(${jsArg(u.email)})" title="Remove">🗑</button>`:'<span style="font-size:12px;color:#aaa">You</span>'}</td>
     </tr>`).join('');
 }
 async function changePassword() {
@@ -871,8 +947,8 @@ function renderDashboard() {
     const visible=sortedTopups.filter(t=>shownMonths.has(t.month));
     const hiddenMonths=tMonths.length-shownMonths.size;
     document.getElementById('topup-tbody').innerHTML=visible.map(t=>`
-      <tr><td>${fmtMonth(t.month)}</td><td><strong style="color:#16a34a">${fmt(t.amount)}</strong></td><td style="color:#888">Monthly top-up</td>
-      <td><button class="btn-delete" onclick="deleteTopup(${t.id})" title="Remove">🗑</button></td></tr>`).join('')
+      <tr><td data-label="Month">${fmtMonth(t.month)}</td><td data-label="Amount"><strong style="color:#16a34a">${fmt(t.amount)}</strong></td><td data-label="Note" class="hide-mobile" style="color:#888">Monthly top-up</td>
+      <td class="td-actions"><button class="btn-delete" onclick="deleteTopup(${t.id})" title="Remove">🗑</button></td></tr>`).join('')
       + (hiddenMonths>0||topupMonthsShown>PAGE_MONTHS ? `<tr><td colspan="4" style="text-align:center;padding:12px">
           ${hiddenMonths>0?`<button class="more-btn" onclick="topupMonthsShown+=PAGE_MONTHS;renderDashboard()">Show older (${hiddenMonths} more month${hiddenMonths>1?'s':''})</button>`:''}
           ${topupMonthsShown>PAGE_MONTHS?`<button class="more-btn more-btn-light" onclick="topupMonthsShown=PAGE_MONTHS;renderDashboard()">Show less</button>`:''}
@@ -928,11 +1004,11 @@ function renderDashboard() {
     const badge=late?'overdue':'upcoming';
     const label=late?'Overdue':isToday?'Today':'Upcoming';
     return `<tr${late?' style="background:#fff5f5"':''}>
-      <td>${m.appt_date?`<strong style="color:${late?'#dc2626':'#4f46e5'}">${fmtDate(m.appt_date)}</strong>`:'<span style="color:#aaa">No date</span>'}</td>
-      <td><strong>${esc(m.item_name)}</strong></td>
-      <td>${esc(m.location||'—')}</td>
-      <td>${m.cost?fmt(m.cost):'—'}</td>
-      <td><span class="badge ${badge}">${label}</span></td></tr>`;
+      <td data-label="Date">${m.appt_date?`<strong style="color:${late?'#dc2626':'#4f46e5'}">${fmtDate(m.appt_date)}</strong>`:'<span style="color:#aaa">No date</span>'}</td>
+      <td data-label="Item"><strong>${esc(m.item_name)}</strong></td>
+      <td data-label="Location">${esc(m.location||'—')}</td>
+      <td data-label="Cost">${m.cost?fmt(m.cost):'—'}</td>
+      <td data-label="Status"><span class="badge ${badge}">${label}</span></td></tr>`;
   }).join(''):'<tr><td colspan="5" class="empty-state">No upcoming maintenance 🎉</td></tr>';
 
 }
@@ -976,7 +1052,7 @@ function renderClaimsTable() {
         </div>
       </div>
       <div class="month-body" id="mg-${m}">
-        <table style="width:100%;border-collapse:collapse">
+        <table class="stack" style="width:100%;border-collapse:collapse">
           <thead><tr>
             <th style="background:#fafafa;padding:10px 16px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#888;font-weight:600">Date</th>
             <th style="background:#fafafa;padding:10px 16px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#888;font-weight:600">Claimant</th>
@@ -988,12 +1064,12 @@ function renderClaimsTable() {
           </tr></thead>
           <tbody>${rows.map(c=>`
             <tr>
-              <td style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5">${fmtDate(c.date)}</td>
-              <td style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5">${esc(c.name)}</td>
-              <td style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5">${esc(c.desc)}${c.photo?`<br><button class="view-receipt-btn" style="margin-top:5px" onclick="viewReceipt(${c.id})">${(c.photo.type||'').startsWith('image/')?'🖼':'📄'} View Receipt</button>`:''}</td>
-              <td style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5">${esc(c.category)}</td>
-              <td style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5"><strong>${fmt(c.amount)}</strong></td>
-              <td style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5">
+              <td data-label="Date" style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5">${fmtDate(c.date)}</td>
+              <td data-label="Claimant" style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5">${esc(c.name)}</td>
+              <td data-label="Description" style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5">${esc(c.desc)}${c.photo?`<br><button class="view-receipt-btn" style="margin-top:5px" onclick="viewReceipt(${c.id})">${(c.photo.type||'').startsWith('image/')?'🖼':'📄'} View Receipt</button>`:''}</td>
+              <td data-label="Category" style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5">${esc(c.category)}</td>
+              <td data-label="Amount" style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5"><strong>${fmt(c.amount)}</strong></td>
+              <td data-label="Status" style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5">
                 ${currentUser?.role==='approver'
                   ?`<select onchange="updateStatus(${c.id},this.value)" style="border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:13px;cursor:pointer;background:white">
                       <option value="pending" ${c.status==='pending'?'selected':''}>🟡 Pending</option>
@@ -1002,7 +1078,7 @@ function renderClaimsTable() {
                     </select>`
                   :`<span class="badge ${esc(c.status)}">${esc(c.status.charAt(0).toUpperCase()+c.status.slice(1))}</span>`}
               </td>
-              <td style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5">${currentUser?.role==='approver'?`<button class="btn-delete" onclick="deleteClaim(${c.id})" title="Delete">🗑</button>`:''}</td>
+              <td class="td-actions" style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5">${currentUser?.role==='approver'?`<button class="btn-delete" onclick="deleteClaim(${c.id})" title="Delete">🗑</button>`:''}</td>
             </tr>`).join('')}</tbody>
         </table>
       </div>
@@ -1161,13 +1237,13 @@ function renderMaintTable(){
   const tbody=document.getElementById('maint-tbody');
   tbody.innerHTML=filtered.length?filtered.map(m=>`
     <tr>
-      <td><strong>${esc(m.item_name)}</strong></td>
-      <td>${esc(m.location||'—')}</td>
-      <td>${m.appt_date?`<strong style="color:#4f46e5">${fmtDate(m.appt_date)}</strong>`:'—'}</td>
-      <td>${m.cost?fmt(m.cost):'—'}</td>
-      <td>${(()=>{const st=maintStatus(m);return `<span class="badge ${st}">${st.charAt(0).toUpperCase()+st.slice(1)}</span>`;})()}</td>
-      <td style="font-size:12px;color:#888;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(m.notes||'')}">${esc(m.notes||'')}</td>
-      <td>
+      <td data-label="Item"><strong>${esc(m.item_name)}</strong></td>
+      <td data-label="Location">${esc(m.location||'—')}</td>
+      <td data-label="Date">${m.appt_date?`<strong style="color:#4f46e5">${fmtDate(m.appt_date)}</strong>`:'—'}</td>
+      <td data-label="Cost">${m.cost?fmt(m.cost):'—'}</td>
+      <td data-label="Status">${(()=>{const st=maintStatus(m);return `<span class="badge ${st}">${st.charAt(0).toUpperCase()+st.slice(1)}</span>`;})()}</td>
+      <td data-label="Notes" class="td-notes" style="font-size:12px;color:#888;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(m.notes||'')}">${esc(m.notes||'')}</td>
+      <td class="td-actions">
         <button class="btn-edit" onclick="openMaintModal(${m.id})" title="Edit">✏️</button>
         <button class="btn-delete" onclick="deleteMaintItem(${m.id})" title="Delete">🗑</button>
       </td>
