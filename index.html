@@ -339,11 +339,6 @@
       <canvas id="statusCanvas" width="200" height="200" style="margin-top:16px;display:block"></canvas>
     </div>
   </div>
-  <div class="table-wrap">
-    <div class="table-header"><h3>Recent Claims</h3></div>
-    <table><thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Status</th></tr></thead>
-    <tbody id="recent-tbody"></tbody></table>
-  </div>
 </div>
 
 <!-- ===== ALL CLAIMS ===== -->
@@ -940,12 +935,6 @@ function renderDashboard() {
       <td><span class="badge ${badge}">${label}</span></td></tr>`;
   }).join(''):'<tr><td colspan="5" class="empty-state">No upcoming maintenance 🎉</td></tr>';
 
-  const recent=[...claims].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
-  document.getElementById('recent-tbody').innerHTML=recent.length?recent.map(c=>`
-    <tr><td>${fmtDate(c.date)}</td><td>${esc(c.desc)}</td><td>${esc(c.category)}</td>
-    <td><strong>${fmt(c.amount)}</strong></td>
-    <td><span class="badge ${esc(c.status)}">${esc(c.status.charAt(0).toUpperCase()+c.status.slice(1))}</span></td></tr>`).join('')
-    :'<tr><td colspan="5" class="empty-state">No claims yet</td></tr>';
 }
 
 // ---- Claims table ----
