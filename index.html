@@ -599,6 +599,28 @@
   </div>
 </div>
 
+<!-- Edit claim modal -->
+<div class="maint-modal-bg" id="claim-edit-modal">
+  <div class="maint-modal">
+    <h3>✏️ Edit Claim</h3>
+    <div class="form-grid">
+      <div class="form-group"><label>Date of Expense *</label><input type="date" id="ce-date"></div>
+      <div class="form-group"><label>Category *</label>
+        <select id="ce-cat"><option>Kitchen</option><option>Foods</option><option>Toilet</option><option>Appliances</option><option>Other</option></select>
+      </div>
+      <div class="form-group"><label>Amount (SGD) *</label><input type="number" id="ce-amount" min="0.01" step="0.01"></div>
+      <div class="form-group full"><label>Description *</label><input type="text" id="ce-desc"></div>
+      <div class="form-group full"><label>Notes</label><textarea id="ce-notes"></textarea></div>
+    </div>
+    <p style="font-size:12px;color:#888;margin-top:12px">Pending claims can be edited until an approver approves or rejects them.</p>
+    <input type="hidden" id="ce-id">
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn-cancel" style="flex:1;padding:10px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600" onclick="closeClaimEdit()">Cancel</button>
+      <button class="btn-save" style="flex:2;padding:10px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600" onclick="saveClaimEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
 <!-- Image viewer modal -->
 <div class="pin-modal-bg" id="photo-modal" onclick="closePhotoModal()">
   <div onclick="event.stopPropagation()" style="background:white;border-radius:14px;padding:20px;max-width:90vw;max-height:90vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,0.3)">
@@ -905,6 +927,8 @@ async function addTopup() {
   renderDashboard(); showToast('✅ Top-up added!');
 }
 async function deleteTopup(id) {
+  if (!isApprover()) return;
+  if (!confirm('Remove this top-up?')) return;
   topups=topups.filter(t=>t.id!==id);
   const {error}=await db.from('settings').upsert({key:'topups',value:topups});
   if (error){showToast('Failed: '+error.message,'#dc2626');return;}
@@ -948,7 +972,7 @@ function renderDashboard() {
     const hiddenMonths=tMonths.length-shownMonths.size;
     document.getElementById('topup-tbody').innerHTML=visible.map(t=>`
       <tr><td data-label="Month">${fmtMonth(t.month)}</td><td data-label="Amount"><strong style="color:#16a34a">${fmt(t.amount)}</strong></td><td data-label="Note" class="hide-mobile" style="color:#888">Monthly top-up</td>
-      <td class="td-actions"><button class="btn-delete" onclick="deleteTopup(${t.id})" title="Remove">🗑</button></td></tr>`).join('')
+      <td class="td-actions">${isApprover()?`<button class="btn-delete" onclick="deleteTopup(${t.id})" title="Remove">🗑</button>`:''}</td></tr>`).join('')
       + (hiddenMonths>0||topupMonthsShown>PAGE_MONTHS ? `<tr><td colspan="4" style="text-align:center;padding:12px">
           ${hiddenMonths>0?`<button class="more-btn" onclick="topupMonthsShown+=PAGE_MONTHS;renderDashboard()">Show older (${hiddenMonths} more month${hiddenMonths>1?'s':''})</button>`:''}
           ${topupMonthsShown>PAGE_MONTHS?`<button class="more-btn more-btn-light" onclick="topupMonthsShown=PAGE_MONTHS;renderDashboard()">Show less</button>`:''}
@@ -1078,7 +1102,7 @@ function renderClaimsTable() {
                     </select>`
                   :`<span class="badge ${esc(c.status)}">${esc(c.status.charAt(0).toUpperCase()+c.status.slice(1))}</span>`}
               </td>
-              <td class="td-actions" style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5">${currentUser?.role==='approver'?`<button class="btn-delete" onclick="deleteClaim(${c.id})" title="Delete">🗑</button>`:''}</td>
+              <td class="td-actions" style="padding:11px 16px;font-size:14px;border-top:1px solid #f5f5f5;white-space:nowrap">${canEditClaim(c)?`<button class="btn-edit" onclick="openClaimEdit(${c.id})" title="Edit">✏️</button><button class="btn-delete" onclick="deleteClaim(${c.id})" title="Delete">🗑</button>`:''}</td>
             </tr>`).join('')}</tbody>
         </table>
       </div>
@@ -1103,11 +1127,47 @@ async function updateStatus(id,status){
   showToast('Status updated'); renderDashboard(); renderClaimsTable();
 }
 
+// ---- Who can change what ----
+function isApprover(){ return currentUser?.role==='approver'; }
+function isMine(c){ return !!currentUser && (c.submitted_by||'').toLowerCase()===(currentUser.email||'').toLowerCase(); }
+// Approvers: any claim. Submitters: only their own, and only while Pending.
+function canEditClaim(c){ return isApprover() || (isMine(c) && c.status==='pending'); }
+
+function openClaimEdit(id){
+  const c=claims.find(x=>x.id===id);
+  if (!c||!canEditClaim(c)){showToast('This claim can no longer be changed','#dc2626');return;}
+  document.getElementById('ce-id').value=id;
+  document.getElementById('ce-date').value=c.date||'';
+  document.getElementById('ce-cat').value=c.category||'Other';
+  document.getElementById('ce-amount').value=c.amount??'';
+  document.getElementById('ce-desc').value=c.description||'';
+  document.getElementById('ce-notes').value=c.notes||'';
+  document.getElementById('claim-edit-modal').classList.add('open');
+}
+function closeClaimEdit(){ document.getElementById('claim-edit-modal').classList.remove('open'); }
+async function saveClaimEdit(){
+  const id=parseInt(document.getElementById('ce-id').value);
+  const date=document.getElementById('ce-date').value;
+  const category=document.getElementById('ce-cat').value;
+  const amount=parseFloat(document.getElementById('ce-amount').value);
+  const description=document.getElementById('ce-desc').value.trim();
+  const notes=document.getElementById('ce-notes').value.trim();
+  if (!date||!category||!(amount>0)||!description){showToast('Please fill in all required fields','#dc2626');return;}
+  const {data,error}=await db.from('claims').update({date,category,amount,description,notes}).eq('id',id).select('id');
+  if (error){showToast('❌ Update failed: '+error.message,'#dc2626');return;}
+  if (!data||data.length===0){showToast('Not allowed — this claim may have just been approved','#dc2626');closeClaimEdit();return;}
+  const c=claims.find(x=>x.id===id);
+  if (c) Object.assign(c,{date,category,amount,description,desc:description,notes});
+  closeClaimEdit(); renderDashboard(); renderClaimsTable(); showToast('✅ Claim updated');
+}
+
 async function deleteClaim(id){
-  if (!confirm('Delete this claim?')) return;
   const target=claims.find(c=>c.id===id);
-  const {error}=await db.from('claims').delete().eq('id',id);
+  if (!target||!canEditClaim(target)){showToast('This claim can no longer be deleted','#dc2626');return;}
+  if (!confirm('Delete this claim?')) return;
+  const {data,error}=await db.from('claims').delete().eq('id',id).select('id');
   if (error){showToast('❌ Delete failed: '+error.message,'#dc2626');return;}
+  if (!data||data.length===0){showToast('Not allowed — this claim may have just been approved','#dc2626');return;}
   if (target?.photo?.path) await db.storage.from('receipts').remove([target.photo.path]);
   claims=claims.filter(c=>c.id!==id); renderClaimsTable(); renderDashboard(); showToast('Claim deleted');
 }
@@ -1245,7 +1305,7 @@ function renderMaintTable(){
       <td data-label="Notes" class="td-notes" style="font-size:12px;color:#888;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(m.notes||'')}">${esc(m.notes||'')}</td>
       <td class="td-actions">
         <button class="btn-edit" onclick="openMaintModal(${m.id})" title="Edit">✏️</button>
-        <button class="btn-delete" onclick="deleteMaintItem(${m.id})" title="Delete">🗑</button>
+        ${isApprover()?`<button class="btn-delete" onclick="deleteMaintItem(${m.id})" title="Delete">🗑</button>`:''}
       </td>
     </tr>`).join('')
     :'<tr><td colspan="7" class="empty-state">No maintenance items yet — click + Add Item</td></tr>';
@@ -1339,9 +1399,11 @@ async function saveMaintItem(){
 }
 
 async function deleteMaintItem(id){
+  if (!isApprover()) return;
   if (!confirm('Delete this maintenance item?')) return;
-  const {error}=await db.from('maintenance').delete().eq('id',id);
+  const {data,error}=await db.from('maintenance').delete().eq('id',id).select('id');
   if (error){showToast('Failed: '+error.message,'#dc2626');return;}
+  if (!data||data.length===0){showToast('Only approvers can delete maintenance items','#dc2626');return;}
   maintItems=maintItems.filter(m=>m.id!==id);
   renderMaintPage(); renderDashboard(); showToast('Item deleted');
 }
